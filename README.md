@@ -286,3 +286,6 @@ Ce projet est sous licence MIT.
 ---
 
 **Garoui Electricité** - Backend API v1.0.0 
+
+## 🎉 Tests automatiques configurés !
+DevOps pipeline fonctionnel avec GitHub Actions !
