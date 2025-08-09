@@ -6,8 +6,11 @@ on:
   pull_request:
     branches: [ main ]
 
+env:
+  PRODUCTION_URL: https://kleer-infini.onrender.com
+
 jobs:
-  # ============ PHASE TESTS ============
+  # ============ PHASE TESTS LOCAUX ============
   tests:
     name: 🧪 Tests automatiques
     runs-on: ubuntu-latest
@@ -61,36 +64,139 @@ jobs:
       run: |
         echo "🚀 Déploiement automatique déclenché"
         echo "✅ Render.com va récupérer le code automatiquement"
-        echo "🔗 URL de production sera disponible après déploiement"
+        echo "🔗 URL de production: ${{ env.PRODUCTION_URL }}"
         
-    - name: ⏱️ Attente stabilisation (30s)
-      run: sleep 30
-      
-    - name: 🏥 Test de santé en production
+    - name: ⏱️ Attente déploiement (90s)
       run: |
-        echo "🏥 Tests de santé seront configurés après déploiement Render"
-        echo "✅ Pipeline de déploiement terminé"
+        echo "⏱️ Attente que Render déploie les changements..."
+        sleep 90
 
-  # ============ NOTIFICATION ============
-  notify:
-    name: 📢 Notifications
+  # ============ TESTS EN PRODUCTION ============
+  production-tests:
+    name: 🌐 Tests en production
     needs: [tests, deploy]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:      
+    - name: 🏥 Test endpoint de santé
+      run: |
+        echo "🧪 Test de l'endpoint de santé en production..."
+        response=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.PRODUCTION_URL }}/api/health)
+        echo "Code de réponse: $response"
+        
+        if [ $response -eq 200 ]; then
+          echo "✅ Endpoint /api/health répond correctement (200)"
+        else
+          echo "❌ Endpoint /api/health échoue (code: $response)"
+          echo "🔄 Tentative de réveil du service (Render peut être en veille)..."
+          sleep 30
+          response2=$(curl -s -o /dev/null -w "%{http_code}" ${{ env.PRODUCTION_URL }}/api/health)
+          if [ $response2 -eq 200 ]; then
+            echo "✅ Service réveillé avec succès !"
+          else
+            echo "❌ Service toujours inaccessible"
+            exit 1
+          fi
+        fi
+        
+    - name: 🏓 Test endpoint ping
+      run: |
+        echo "🧪 Test de l'endpoint ping..."
+        response=$(curl -s ${{ env.PRODUCTION_URL }}/api/ping || echo "CURL_FAILED")
+        echo "Réponse reçue: $response"
+        
+        if echo "$response" | grep -q "pong"; then
+          echo "✅ Endpoint /api/ping répond 'pong'"
+        else
+          echo "❌ Endpoint /api/ping ne répond pas correctement"
+          exit 1
+        fi
+        
+    - name: ⚡ Test temps de réponse
+      run: |
+        echo "🧪 Test du temps de réponse..."
+        start_time=$(date +%s%N)
+        curl -s ${{ env.PRODUCTION_URL }}/api/ping > /dev/null
+        end_time=$(date +%s%N)
+        
+        duration=$(( (end_time - start_time) / 1000000 ))
+        echo "⏱️ Temps de réponse: ${duration}ms"
+        
+        if [ $duration -lt 3000 ]; then
+          echo "✅ Temps de réponse acceptable (< 3s)"
+        else
+          echo "⚠️ Temps de réponse élevé (> 3s) mais acceptable pour Render gratuit"
+        fi
+        
+    - name: 🔍 Test structure réponse health
+      run: |
+        echo "🧪 Test de la structure de /api/health..."
+        response=$(curl -s ${{ env.PRODUCTION_URL }}/api/health)
+        echo "Réponse health complète:"
+        echo "$response"
+        
+        if echo "$response" | grep -q '"status":"UP"'; then
+          echo "✅ Status UP détecté"
+        else
+          echo "❌ Status UP non trouvé"
+          exit 1
+        fi
+        
+        if echo "$response" | grep -q "Garoui"; then
+          echo "✅ Service name Garoui détecté"
+        else
+          echo "❌ Service name Garoui non trouvé"
+          exit 1
+        fi
+        
+        echo "✅ Tests en production réussis !"
+
+  # ============ NOTIFICATION DEVOPS ============
+  notify:
+    name: 📢 Résumé DevOps
+    needs: [tests, deploy, production-tests]
     runs-on: ubuntu-latest
     if: always()
     
     steps:
-    - name: ✅ Succès complet
-      if: needs.tests.result == 'success' && needs.deploy.result == 'success'
+    - name: 📊 Rapport final
       run: |
-        echo "🎉 SUCCÈS COMPLET !"
-        echo "✅ Tests passés sur toutes les versions Node.js"
-        echo "✅ Déploiement réussi sur Render.com"
-        echo "✅ Application prête en production"
+        echo "========================================="
+        echo "🎯 RAPPORT DEVOPS - Garoui Electricité"
+        echo "========================================="
+        echo "📅 Date: $(date)"
+        echo "🔗 URL Production: ${{ env.PRODUCTION_URL }}"
+        echo ""
+        echo "📊 RÉSULTATS:"
+        echo "Tests locaux: ${{ needs.tests.result }}"
+        echo "Déploiement: ${{ needs.deploy.result }}"
+        echo "Tests production: ${{ needs.production-tests.result }}"
+        echo ""
         
-    - name: ❌ Échec détecté
-      if: needs.tests.result != 'success' || needs.deploy.result != 'success'
-      run: |
-        echo "❌ ÉCHEC DÉTECTÉ"
-        echo "Tests: ${{ needs.tests.result }}"
-        echo "Deploy: ${{ needs.deploy.result }}"
-        echo "Vérifiez les logs ci-dessus"
+        if [ "${{ needs.tests.result }}" == "success" ] && [ "${{ needs.deploy.result }}" == "success" ] && [ "${{ needs.production-tests.result }}" == "success" ]; then
+          echo "🎉 ✅ SUCCÈS COMPLET !"
+          echo "✅ Application déployée et fonctionnelle"
+          echo "✅ Tous les tests passent"
+          echo "✅ API accessible en production"
+          echo ""
+          echo "🔗 Endpoints disponibles:"
+          echo "- Health: ${{ env.PRODUCTION_URL }}/api/health"
+          echo "- Ping: ${{ env.PRODUCTION_URL }}/api/ping"
+          echo "- Status: ${{ env.PRODUCTION_URL }}/api/status"
+          echo ""
+          echo "🔄 Monitoring UptimeRobot configuré"
+        else
+          echo "❌ PROBLÈME DÉTECTÉ"
+          echo "Vérifiez les logs ci-dessus"
+          
+          if [ "${{ needs.tests.result }}" != "success" ]; then
+            echo "- Tests locaux en échec"
+          fi
+          if [ "${{ needs.deploy.result }}" != "success" ]; then
+            echo "- Déploiement en échec"
+          fi
+          if [ "${{ needs.production-tests.result }}" != "success" ]; then
+            echo "- Tests production en échec"
+          fi
+        fi
