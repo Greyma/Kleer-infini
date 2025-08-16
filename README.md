@@ -33,34 +33,32 @@ Backend complet pour l'application web Garoui Electricité avec gestion des recr
 - ✅ Interface d'administration pour ajout/suppression
 
 ### 6. Système d'abonnement
-- ✅ Abonnement mensuel et trimestriel pour les utilisateurs
-- ✅ Gestion des paiements et renouvellements
-- ✅ API pour souscrire, consulter et annuler un abonnement
-- ✅ Notifications de renouvellement et expiration
+ ✅ Abonnement mensuel et trimestriel pour les utilisateurs
+ ✅ Gestion des paiements et renouvellements
+ ✅ API pour souscrire, consulter et annuler un abonnement
+ ✅ Notifications de renouvellement et expiration
+ ✅ Champs requis à la souscription : raison sociale, wilaya, numéro registre commerce, années d’expérience, spécialités
+ ✅ CRUD des offres pour sous-traitants et admin
+ ✅ Consultation des abonnés (candidats) ayant postulé à chaque offre
+ ✅ L’admin peut voir tous les abonnés sur toutes les offres
 
 ## 🛠️ Technologies utilisées
-
-- **Backend**: Node.js avec Express.js
 - **Base de données**: MySQL
 - **Authentification**: JWT (JSON Web Tokens)
 - **Stockage fichiers**: AWS S3
 - **Validation**: Express-validator
 - **Sécurité**: Helmet, CORS, Rate limiting
 - **Hachage**: bcryptjs
+  - raison_sociale VARCHAR(255) NOT NULL
+  - wilaya VARCHAR(100) NOT NULL
+  - numero_registre_commerce VARCHAR(100) NOT NULL
+  - annees_experience INT NOT NULL
+  - specialites TEXT NOT NULL
 
 ## 📋 Prérequis
-
 - Node.js (version 16 ou supérieure)
 - MySQL (version 8.0 ou supérieure)
 - Compte AWS avec accès S3 (optionnel pour le stockage de fichiers)
-
-- Table MySQL subscriptions :
-  - id INT AUTO_INCREMENT PRIMARY KEY
-  - user_id INT NOT NULL
-  - type ENUM('mois','trimestre') NOT NULL
-  - date_debut DATETIME NOT NULL
-  - date_fin DATETIME NOT NULL
-  - status ENUM('active','cancelled','expired') DEFAULT 'active'
 
 ## 🔧 Installation
 
@@ -163,7 +161,9 @@ Authorization: Bearer <token>
 ```
 
 ### Routes principales
-#### 💳 Abonnement
+#### � Abonnés
+- `GET /abonnes` - Liste des abonnés (admin : tous, sous-traitant : ceux ayant postulé à ses offres)
+#### �💳 Abonnement
 - `POST /abonnement/souscrire` - Souscrire à un abonnement (mensuel ou trimestriel)
 - `GET /abonnement/mon-abonnement` - Consulter l'état de son abonnement
 - `POST /abonnement/annuler` - Annuler son abonnement
@@ -212,6 +212,16 @@ Authorization: Bearer <token>
 - `GET /admin/users` - Gestion utilisateurs
 - `GET /admin/reports/candidatures` - Rapports candidatures
 - `GET /admin/reports/devis` - Rapports devis
+
+#### 📝 Offres
+- `POST /offres` - Créer une offre (sous-traitant ou admin)
+- `GET /offres` - Voir ses offres
+- `GET /offres/:id` - Voir une offre spécifique
+- `PUT /offres/:id` - Modifier une offre
+- `DELETE /offres/:id` - Supprimer une offre
+
+#### 👀 Consultation des abonnés sur une offre
+- `GET /offres-abonnes/:offreId/abonnes` - Voir les abonnés (candidats) ayant postulé à une offre (admin ou propriétaire de l’offre)
 
 ## 👥 Rôles utilisateurs
 

@@ -8,6 +8,11 @@ module.exports = async function migrate(db) {
       date_debut DATETIME NOT NULL,
       date_fin DATETIME NOT NULL,
       status ENUM('active','cancelled','expired') DEFAULT 'active',
+      raison_sociale VARCHAR(255) NOT NULL,
+      wilaya VARCHAR(100) NOT NULL,
+      numero_registre_commerce VARCHAR(100) NOT NULL,
+      annees_experience INT NOT NULL,
+      specialites TEXT NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     );

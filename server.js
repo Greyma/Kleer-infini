@@ -1,3 +1,6 @@
+const abonnesRoutes = require('./routes/abonnes');
+const offresAbonnesRoutes = require('./routes/offres-abonnes');
+const offresRoutes = require('./routes/offres');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -48,6 +51,9 @@ app.use('/api/materiel', require('./routes/materiel'));
 app.use('/api/partenaires', require('./routes/partenaires'));
 app.use('/api/admin', require('./routes/admin'));
 app.use('/api/abonnement', abonnementRoutes);
+app.use('/api/offres', offresRoutes);
+app.use('/api/offres-abonnes', offresAbonnesRoutes);
+app.use('/api/abonnes', abonnesRoutes);
 // ============ ENDPOINTS DE SANTÉ DEVOPS ============
 app.get('/api/health', (req, res) => {
   const healthCheck = {
