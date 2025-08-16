@@ -3,7 +3,6 @@
 Backend complet pour l'application web Garoui Electricité avec gestion des recrutements, sous-traitance, services clients, catalogue matériel et partenaires.
 
 ## 🚀 Fonctionnalités
-
 ### 1. Espace Recrutement & Stage
 - ✅ API RESTful pour gestion des candidatures (CRUD)
 - ✅ Stockage sécurisé des CV, diplômes et documents (AWS S3)
@@ -33,6 +32,12 @@ Backend complet pour l'application web Garoui Electricité avec gestion des recr
 - ✅ Association des partenaires à catégories/services
 - ✅ Interface d'administration pour ajout/suppression
 
+### 6. Système d'abonnement
+- ✅ Abonnement mensuel et trimestriel pour les utilisateurs
+- ✅ Gestion des paiements et renouvellements
+- ✅ API pour souscrire, consulter et annuler un abonnement
+- ✅ Notifications de renouvellement et expiration
+
 ## 🛠️ Technologies utilisées
 
 - **Backend**: Node.js avec Express.js
@@ -48,6 +53,14 @@ Backend complet pour l'application web Garoui Electricité avec gestion des recr
 - Node.js (version 16 ou supérieure)
 - MySQL (version 8.0 ou supérieure)
 - Compte AWS avec accès S3 (optionnel pour le stockage de fichiers)
+
+- Table MySQL subscriptions :
+  - id INT AUTO_INCREMENT PRIMARY KEY
+  - user_id INT NOT NULL
+  - type ENUM('mois','trimestre') NOT NULL
+  - date_debut DATETIME NOT NULL
+  - date_fin DATETIME NOT NULL
+  - status ENUM('active','cancelled','expired') DEFAULT 'active'
 
 ## 🔧 Installation
 
@@ -81,6 +94,9 @@ CREATE DATABASE garoui_electricite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode
 ```bash
 # Créer les tables
 npm run migrate
+
+# Créer la table des abonnements
+node scripts/migrate_subscription.js
 
 # Ajouter les données de test
 npm run seed
@@ -147,6 +163,11 @@ Authorization: Bearer <token>
 ```
 
 ### Routes principales
+#### 💳 Abonnement
+- `POST /abonnement/souscrire` - Souscrire à un abonnement (mensuel ou trimestriel)
+- `GET /abonnement/mon-abonnement` - Consulter l'état de son abonnement
+- `POST /abonnement/annuler` - Annuler son abonnement
+- `GET /abonnement/admin/abonnements` - Liste des abonnements (admin)
 
 #### 🔐 Authentification
 - `POST /auth/register` - Inscription utilisateur

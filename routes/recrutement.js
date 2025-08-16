@@ -14,6 +14,19 @@ router.post('/candidature', [
   body('disponibilite').isISO8601().toDate(),
   body('salaire_souhaite').optional().isFloat({ min: 0 })
 ], uploadCV, async (req, res) => {
+  // Vérification abonnement pour les électriciens
+  if (req.user.role === 'candidat' || req.user.role === 'electricien') {
+    const [rows] = await dbQuery(
+      `SELECT * FROM subscriptions WHERE user_id = ? AND status = 'active' AND date_fin > NOW() ORDER BY date_fin DESC LIMIT 1`,
+      [req.user.id]
+    );
+    if (!rows.length) {
+      return res.status(403).json({
+        error: 'Abonnement requis',
+        message: 'Vous devez avoir un abonnement actif pour postuler aux offres.'
+      });
+    }
+  }
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {

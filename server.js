@@ -5,6 +5,7 @@ const compression = require('compression');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
+const abonnementRoutes = require('./routes/abonnement');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,6 +47,7 @@ app.use('/api/services', require('./routes/services'));
 app.use('/api/materiel', require('./routes/materiel'));
 app.use('/api/partenaires', require('./routes/partenaires'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/abonnement', abonnementRoutes);
 // ============ ENDPOINTS DE SANTÉ DEVOPS ============
 app.get('/api/health', (req, res) => {
   const healthCheck = {
