@@ -17,13 +17,38 @@ const PORT = process.env.PORT || 3000;
 app.use(helmet());
 app.use(compression());
 
-// Configuration CORS
-app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://garoui-electricite.com'] 
-    : ['*', 'http://localhost:3001','http://localhost:5173'],
-  credentials: true
-}));
+// Configuration CORS (liste blanche configurable)
+const parsedEnvOrigins = (process.env.ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const defaultAllowedOrigins = [
+  'https://garoui-electricite.com',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://localhost:3001',
+  '*'
+];
+
+const allowedOrigins = parsedEnvOrigins.length ? parsedEnvOrigins : defaultAllowedOrigins;
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Autoriser requêtes sans en-tête Origin (ex: curl, monitoring)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
+// S'assurer que les requêtes preflight OPTIONS reçoivent les bons en-têtes
+app.options('*', cors(corsOptions));
 
 // Rate limiting
 const limiter = rateLimit({
