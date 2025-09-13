@@ -89,8 +89,10 @@ router.get('/produits', async (req, res) => {
       page = 1, 
       limit = 12 
     } = req.query;
-    
-    const offset = (page - 1) * limit;
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(limit, 10) || 12);
+    const offset = (pageNum - 1) * limitNum;
 
     let whereClause = '1=1';
     let params = [];
@@ -139,17 +141,23 @@ router.get('/produits', async (req, res) => {
 
     // Récupérer les produits
     const produits = await dbQuery(
-      `SELECT * FROM produits WHERE ${whereClause} ORDER BY nom LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+      `SELECT * FROM produits WHERE ${whereClause} ORDER BY nom LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
+    const DEFAULT_IMAGE = '/images/default.jpg';
+    const produitsMapped = produits.map(p => ({
+      ...p,
+      image_url: p.image_url || DEFAULT_IMAGE
+    }));
+
     res.json({
-      produits,
+      produits: produitsMapped,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: countResult.total,
-        pages: Math.ceil(countResult.total / limit)
+        pages: Math.ceil(countResult.total / limitNum)
       }
     });
 
@@ -179,8 +187,9 @@ router.get('/produits/:id', async (req, res) => {
       });
     }
 
+    const DEFAULT_IMAGE = '/images/default.jpg';
     res.json({
-      produit
+      produit: { ...produit, image_url: produit.image_url || DEFAULT_IMAGE }
     });
 
   } catch (error) {

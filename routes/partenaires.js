@@ -78,8 +78,10 @@ router.post('/partenaires', [
 // Lister tous les partenaires
 router.get('/partenaires', async (req, res) => {
   try {
-    const { categorie, status = 'active', page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
+    const { categorie, status = 'active' } = req.query;
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(req.query.limit, 10) || 10);
+    const offset = (pageNum - 1) * limitNum;
 
     let whereClause = 'status = ?';
     let params = [status];
@@ -97,17 +99,23 @@ router.get('/partenaires', async (req, res) => {
 
     // Récupérer les partenaires
     const partenaires = await dbQuery(
-      `SELECT * FROM partenaires WHERE ${whereClause} ORDER BY nom LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+      `SELECT * FROM partenaires WHERE ${whereClause} ORDER BY nom LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
+    const DEFAULT_IMAGE = '/images/default.jpg';
+    const partenairesMapped = partenaires.map(p => ({
+      ...p,
+      logo_url: p.logo_url || DEFAULT_IMAGE
+    }));
+
     res.json({
-      partenaires,
+      partenaires: partenairesMapped,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: countResult.total,
-        pages: Math.ceil(countResult.total / limit)
+        pages: Math.ceil(countResult.total / limitNum)
       }
     });
 
@@ -137,8 +145,9 @@ router.get('/partenaires/:id', async (req, res) => {
       });
     }
 
+    const DEFAULT_IMAGE = '/images/default.jpg';
     res.json({
-      partenaire
+      partenaire: { ...partenaire, logo_url: partenaire.logo_url || DEFAULT_IMAGE }
     });
 
   } catch (error) {

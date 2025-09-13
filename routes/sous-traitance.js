@@ -2,23 +2,31 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const { query: dbQuery } = require('../config/database');
 const { authenticateToken, requireAdminOrModerator } = require('../middleware/auth');
-const { uploadDocument, uploadToS3 } = require('../utils/upload');
+const { upload, uploadDocument, uploadToS3 } = require('../utils/upload');
 const router = express.Router();
 
-// Créer un profil entreprise
+// Créer un profil entreprise (accepte les nouveaux champs + 3 fichiers)
 router.post('/entreprise', [
-  body('nom_entreprise').notEmpty().trim(),
-  body('siret').isLength({ min: 14, max: 14 }),
-  body('adresse').notEmpty().trim(),
-  body('ville').notEmpty().trim(),
-  body('code_postal').isPostalCode('FR'),
-  body('telephone').isMobilePhone('fr-FR'),
-  body('email_contact').isEmail().normalizeEmail(),
-  body('type_activite').notEmpty().trim(),
+  authenticateToken,
+  body(['raison_sociale','nom_entreprise']).notEmpty().trim(),
+  body(['numero_registre_commerce','siret']).notEmpty().trim(),
+  body('wilaya').notEmpty().trim(),
+  body('annees_experience').optional().isInt({ min: 0 }),
+  body('specialites').optional(),
+  body('contactName').optional().trim(),
+  body('email').optional().isEmail().normalizeEmail(),
+  body('phone').optional().isString(),
+  // Legacy acceptance to keep backward compatibility
+  body('adresse').optional().trim(),
+  body('ville').optional().trim(),
+  body('code_postal').optional().trim(),
+  body('telephone').optional().isString(),
+  body('email_contact').optional().isEmail().normalizeEmail(),
+  body('type_activite').optional().trim(),
   body('description').optional().trim(),
   body('capacite_production').optional().isInt({ min: 1 }),
   body('certifications').optional().trim()
-], uploadDocument, async (req, res) => {
+], upload.fields([{ name: 'registre' }, { name: 'attestation' }, { name: 'references' }]), async (req, res) => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -28,19 +36,21 @@ router.post('/entreprise', [
       });
     }
 
-    const {
-      nom_entreprise,
-      siret,
-      adresse,
-      ville,
-      code_postal,
-      telephone,
-      email_contact,
-      type_activite,
-      description,
-      capacite_production,
-      certifications
-    } = req.body;
+    const nom_entreprise = req.body.nom_entreprise || req.body.raison_sociale;
+    const siret = req.body.siret || req.body.numero_registre_commerce;
+    const wilaya = req.body.wilaya;
+    const annees_experience = req.body.annees_experience ?? null;
+    const specialites = req.body.specialites ? (Array.isArray(req.body.specialites) ? req.body.specialites : (()=>{try{return JSON.parse(req.body.specialites);}catch{return null;}})()) : null;
+    const contact_name = req.body.contactName || null;
+    const email = req.body.email || req.body.email_contact || null;
+    const phone = req.body.phone || req.body.telephone || null;
+    const adresse = req.body.adresse || null;
+    const ville = req.body.ville || null;
+    const code_postal = req.body.code_postal || null;
+    const type_activite = req.body.type_activite || null;
+    const description = req.body.description || null;
+    const capacite_production = req.body.capacite_production || null;
+    const certifications = req.body.certifications || null;
 
     // Vérifier si l'entreprise existe déjà
     const [existingEntreprise] = await dbQuery(
@@ -55,23 +65,32 @@ router.post('/entreprise', [
       });
     }
 
-    let documentUrl = null;
-    let documentKey = null;
-
-    if (req.file) {
-      const documentFile = await uploadToS3(req.file, 'entreprises');
-      documentUrl = documentFile.url;
-      documentKey = documentFile.key;
+    // Handle 3 optional documents
+    const files = req.files || {};
+    let registreUrl = null, attestationUrl = null, referencesUrl = null;
+    if (files.registre && files.registre[0]) {
+      const f = await uploadToS3(files.registre[0], 'entreprises/registre');
+      registreUrl = f.url;
+    }
+    if (files.attestation && files.attestation[0]) {
+      const f = await uploadToS3(files.attestation[0], 'entreprises/attestation');
+      attestationUrl = f.url;
+    }
+    if (files.references && files.references[0]) {
+      const f = await uploadToS3(files.references[0], 'entreprises/references');
+      referencesUrl = f.url;
     }
 
     // Insérer l'entreprise
-    const [result] = await dbQuery(
+    const result = await dbQuery(
       `INSERT INTO entreprises (
         user_id, nom_entreprise, siret, adresse, ville, code_postal,
         telephone, email_contact, type_activite, description,
-        capacite_production, certifications, document_url, document_key,
-        status, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+        capacite_production, certifications, status, created_at,
+        raison_sociale, wilaya, numero_registre_commerce, annees_experience, specialites,
+        contact_name, logo_url, secteur, location, site,
+        registre_url, attestation_url, references_url, owner_user_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW(), ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, ?, ?, ?, ?)`,
       [
         req.user.id,
         nom_entreprise,
@@ -79,14 +98,28 @@ router.post('/entreprise', [
         adresse,
         ville,
         code_postal,
-        telephone,
-        email_contact,
+        phone,
+        email,
         type_activite,
-        description || null,
-        capacite_production || null,
-        certifications || null,
-        documentUrl,
-        documentKey
+        description,
+        capacite_production,
+        certifications,
+        nom_entreprise,
+        wilaya,
+        siret,
+        annees_experience,
+        specialites ? JSON.stringify(specialites) : null,
+        contact_name,
+        // logo_url NULL
+        null,
+        // secteur, location, site
+        null,
+        null,
+        null,
+        registreUrl,
+        attestationUrl,
+        referencesUrl,
+        req.user.id
       ]
     );
 
@@ -94,7 +127,7 @@ router.post('/entreprise', [
       message: 'Profil entreprise créé avec succès',
       entreprise: {
         id: result.insertId,
-        nom_entreprise,
+        raison_sociale: nom_entreprise,
         status: 'pending'
       }
     });
@@ -213,8 +246,10 @@ router.put('/entreprise/:id', [
 // ADMIN: Lister toutes les entreprises
 router.get('/admin/entreprises', requireAdminOrModerator, async (req, res) => {
   try {
-    const { status, type_activite, region, page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
+    const { status, type_activite, region } = req.query;
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(req.query.limit, 10) || 10);
+    const offset = (pageNum - 1) * limitNum;
 
     let whereClause = '1=1';
     let params = [];
@@ -247,17 +282,23 @@ router.get('/admin/entreprises', requireAdminOrModerator, async (req, res) => {
        JOIN users u ON e.user_id = u.id
        WHERE ${whereClause}
        ORDER BY e.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+       LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
+    const DEFAULT_IMAGE = '/images/default.jpg';
+    const entreprisesMapped = entreprises.map(e => ({
+      ...e,
+      logo_url: e.logo_url || DEFAULT_IMAGE
+    }));
+
     res.json({
-      entreprises,
+      entreprises: entreprisesMapped,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: countResult.total,
-        pages: Math.ceil(countResult.total / limit)
+        pages: Math.ceil(countResult.total / limitNum)
       }
     });
 

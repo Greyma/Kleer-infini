@@ -21,7 +21,7 @@ app.use(compression());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://garoui-electricite.com'] 
-    : ['http://localhost:3000', 'http://localhost:3001'],
+    : ['http://localhost:3000', 'http://localhost:3001','http://localhost:5173'],
   credentials: true
 }));
 
@@ -41,6 +41,9 @@ app.use(morgan('combined'));
 // Middleware pour parser le JSON
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Fichiers statiques (pour images par défaut)
+app.use('/images', express.static('public/images'));
 
 // Routes API
 app.use('/api/auth', require('./routes/auth'));
