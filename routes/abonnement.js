@@ -2,18 +2,18 @@
 const express = require('express');
 const router = express.Router();
 const abonnementController = require('../controllers/abonnement');
-const auth = require('../middleware/auth');
+const {authenticateToken} = require('../middleware/auth');
 
 // Souscrire à un abonnement
-router.post('/souscrire', auth, abonnementController.souscrire);
+router.post('/souscrire', authenticateToken, abonnementController.souscrire);
 
 // Consulter son abonnement
-router.get('/mon-abonnement', auth, abonnementController.monAbonnement);
+router.get('/mon-abonnement', authenticateToken, abonnementController.monAbonnement);
 
 // Annuler son abonnement
-router.post('/annuler', auth, abonnementController.annuler);
+router.post('/annuler', authenticateToken, abonnementController.annuler);
 
 // Liste des abonnements (admin)
-router.get('/admin/abonnements', auth, abonnementController.listeAbonnements);
+router.get('/admin/abonnements', authenticateToken, abonnementController.listeAbonnements);
 
 module.exports = router;

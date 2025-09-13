@@ -10,10 +10,13 @@ const router = express.Router();
 router.post('/register', [
   body('email').isEmail().normalizeEmail(),
   body('password').isLength({ min: 6 }),
-  body('nom').notEmpty().trim(),
-  body('prenom').notEmpty().trim(),
-  body('telephone').optional().isMobilePhone('fr-FR'),
-  body('role').isIn(['client', 'partner', 'candidat'])
+  // Accept both FR and EN field names
+  body(['nom','firstName']).notEmpty(),
+  body(['prenom','lastName']).notEmpty(),
+  body(['telephone','phone']).optional().isString(),
+  body('profession').optional().isString(),
+  body('experience').optional().isInt({ min: 0 }),
+  body('role').optional().isIn(['client', 'partner', 'candidat'])
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -24,7 +27,13 @@ router.post('/register', [
       });
     }
 
-    const { email, password, nom, prenom, telephone, role } = req.body;
+    const { email, password } = req.body;
+    const nom = req.body.nom || req.body.firstName;
+    const prenom = req.body.prenom || req.body.lastName;
+    const telephone = req.body.telephone || req.body.phone || null;
+    const profession = req.body.profession || null;
+    const experience = req.body.experience ?? null;
+    const role = req.body.role || 'client';
 
     // Vérifier si l'email existe déjà
     const [existingUser] = await query(
@@ -44,9 +53,9 @@ router.post('/register', [
 
     // Insérer le nouvel utilisateur
     const [result] = await query(
-      `INSERT INTO users (email, password, nom, prenom, telephone, role, status, created_at) 
-       VALUES (?, ?, ?, ?, ?, ?, 'pending', NOW())`,
-      [email, hashedPassword, nom, prenom, telephone, role]
+      `INSERT INTO users (email, password, nom, prenom, telephone, profession, experience, role, status, created_at) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())`,
+      [email, hashedPassword, nom, prenom, telephone, profession, experience, role]
     );
 
     // Générer le token JWT
@@ -60,11 +69,15 @@ router.post('/register', [
       message: 'Compte créé avec succès',
       user: {
         id: result.insertId,
+        firstName: nom,
+        lastName: prenom,
         email,
-        nom,
-        prenom,
+        phone: telephone,
+        profession,
+        experience: experience !== null ? Number(experience) : null,
         role,
-        status: 'pending'
+        subscriptionStatus: 'free',
+        createdAt: new Date().toISOString()
       },
       token
     });
@@ -157,7 +170,7 @@ router.post('/login', [
 router.get('/profile', authenticateToken, async (req, res) => {
   try {
     const [user] = await query(
-      `SELECT id, email, nom, prenom, telephone, role, status, created_at, updated_at 
+      `SELECT id, email, nom, prenom, telephone, profession, experience, role, status, created_at, updated_at 
        FROM users WHERE id = ?`,
       [req.user.id]
     );
@@ -169,8 +182,36 @@ router.get('/profile', authenticateToken, async (req, res) => {
       });
     }
 
+    // Fetch latest subscription to compute status
+    const subscriptions = await query(
+      `SELECT status, date_debut, date_fin FROM subscriptions WHERE user_id = ? ORDER BY date_fin DESC LIMIT 1`,
+      [req.user.id]
+    );
+    let subscriptionStatus = 'free';
+    let subscriptionEndDate = null;
+    if (subscriptions.length) {
+      const sub = subscriptions[0];
+      const now = new Date();
+      const endsAt = new Date(sub.date_fin);
+      subscriptionEndDate = endsAt.toISOString();
+      if (sub.status === 'active' && endsAt > now) subscriptionStatus = 'premium';
+      else if (endsAt <= now) subscriptionStatus = 'expired';
+    }
+
     res.json({
-      user
+      user: {
+        id: user.id,
+        firstName: user.nom,
+        lastName: user.prenom,
+        email: user.email,
+        phone: user.telephone,
+        profession: user.profession || null,
+        experience: user.experience !== null ? Number(user.experience) : null,
+        role: user.role,
+        subscriptionStatus,
+        subscriptionEndDate,
+        createdAt: new Date(user.created_at).toISOString()
+      }
     });
 
   } catch (error) {

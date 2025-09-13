@@ -243,8 +243,10 @@ router.get('/candidature/:id', authenticateToken, async (req, res) => {
 // ADMIN/MODERATEUR: Lister toutes les candidatures
 router.get('/admin/candidatures', requireAdminOrModerator, async (req, res) => {
   try {
-    const { status, poste, page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
+    const { status, poste } = req.query;
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(req.query.limit, 10) || 10);
+    const offset = (pageNum - 1) * limitNum;
 
     let whereClause = '1=1';
     let params = [];
@@ -274,17 +276,17 @@ router.get('/admin/candidatures', requireAdminOrModerator, async (req, res) => {
        JOIN users u ON c.user_id = u.id
        WHERE ${whereClause}
        ORDER BY c.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+       LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
     res.json({
       candidatures,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: countResult.total,
-        pages: Math.ceil(countResult.total / limit)
+        pages: Math.ceil(countResult.total / limitNum)
       }
     });
 

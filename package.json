@@ -10,6 +10,8 @@
   "test:watch": "jest --watch",
   "test:coverage": "jest --coverage || exit 0",
   "migrate": "node scripts/migrate.js",
+  "migrate:frontend-alignment": "node scripts/run_frontend_alignment.js",
+  "db:ping": "node scripts/db_ping.js",
   "seed": "node scripts/seed.js",
   "build": "echo 'Build completed - Ready for production'",
   "health-check": "curl http://localhost:3000/api/health",

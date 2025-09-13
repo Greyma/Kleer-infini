@@ -5,60 +5,25 @@ const seedData = async () => {
   try {
     console.log('🌱 Début du seeding de la base de données...');
 
-    // Créer un utilisateur admin
-    const adminPassword = await bcrypt.hash('admin123', 12);
-    await query(`
-      INSERT INTO users (email, password, nom, prenom, role, status) 
-      VALUES ('admin@garoui-electricite.com', ?, 'Admin', 'Garoui', 'admin', 'active')
-      ON DUPLICATE KEY UPDATE id = id
-    `, [adminPassword]);
-    console.log('✅ Utilisateur admin créé');
+    // Helper: upsert user and return id
+    const upsertUser = async ({ email, passwordPlain, nom, prenom, role, status = 'active', telephone = null, profession = null, experience = null }) => {
+      const password = await bcrypt.hash(passwordPlain, 12);
+      await query(
+        `INSERT INTO users (email, password, nom, prenom, telephone, profession, experience, role, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE nom = VALUES(nom), prenom = VALUES(prenom), telephone = COALESCE(VALUES(telephone), telephone), profession = COALESCE(VALUES(profession), profession), experience = COALESCE(VALUES(experience), experience), role = VALUES(role), status = VALUES(status)`,
+        [email, password, nom, prenom, telephone, profession, experience, role, status]
+      );
+      const rows = await query('SELECT id FROM users WHERE email = ?', [email]);
+      return rows[0].id;
+    };
 
-    // Créer un modérateur
-    const moderatorPassword = await bcrypt.hash('moderator123', 12);
-    await query(`
-      INSERT INTO users (email, password, nom, prenom, role, status) 
-      VALUES ('moderator@garoui-electricite.com', ?, 'Modérateur', 'Test', 'moderator', 'active')
-      ON DUPLICATE KEY UPDATE id = id
-    `, [moderatorPassword]);
-    console.log('✅ Utilisateur modérateur créé');
-
-    // Créer quelques utilisateurs de test
-    const testUsers = [
-      {
-        email: 'client@test.com',
-        password: await bcrypt.hash('client123', 12),
-        nom: 'Dupont',
-        prenom: 'Jean',
-        role: 'client',
-        status: 'active'
-      },
-      {
-        email: 'partenaire@test.com',
-        password: await bcrypt.hash('partenaire123', 12),
-        nom: 'Martin',
-        prenom: 'Pierre',
-        role: 'partner',
-        status: 'active'
-      },
-      {
-        email: 'candidat@test.com',
-        password: await bcrypt.hash('candidat123', 12),
-        nom: 'Bernard',
-        prenom: 'Marie',
-        role: 'candidat',
-        status: 'active'
-      }
-    ];
-
-    for (const user of testUsers) {
-      await query(`
-        INSERT INTO users (email, password, nom, prenom, role, status) 
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE id = id
-      `, [user.email, user.password, user.nom, user.prenom, user.role, user.status]);
-    }
-    console.log('✅ Utilisateurs de test créés');
+    const adminId = await upsertUser({ email: 'admin@garoui-electricite.com', passwordPlain: 'admin123', nom: 'Admin', prenom: 'Garoui', role: 'admin' });
+    const moderatorId = await upsertUser({ email: 'moderator@garoui-electricite.com', passwordPlain: 'moderator123', nom: 'Modérateur', prenom: 'Test', role: 'moderator' });
+    const clientId = await upsertUser({ email: 'client@test.com', passwordPlain: 'client123', nom: 'Dupont', prenom: 'Jean', role: 'client' });
+    const partenaireId = await upsertUser({ email: 'partenaire@test.com', passwordPlain: 'partenaire123', nom: 'Martin', prenom: 'Pierre', role: 'partner', telephone: '0600000000' });
+    const candidatId = await upsertUser({ email: 'candidat@test.com', passwordPlain: 'candidat123', nom: 'Bernard', prenom: 'Marie', role: 'candidat', profession: 'Électricien', experience: 3 });
+    console.log('✅ Utilisateurs (admin/moderator/client/partner/candidate) créés/à jour');
 
     // Créer des services
     const services = [
@@ -203,10 +168,50 @@ const seedData = async () => {
     }
     console.log('✅ Partenaires créés');
 
+    // Entreprise (company) pour le partenaire
+    const entreprisesRows = await query('SELECT id FROM entreprises WHERE user_id = ?', [partenaireId]);
+    let entrepriseId;
+    if (entreprisesRows.length) {
+      entrepriseId = entreprisesRows[0].id;
+    } else {
+      const insertRes = await query(
+        `INSERT INTO entreprises (user_id, nom_entreprise, siret, adresse, ville, code_postal, telephone, email_contact, type_activite, description, status, created_at, raison_sociale, wilaya, numero_registre_commerce, annees_experience, specialites)
+         VALUES (?, 'Electricité Martin', '12345678901234', '1 rue de Paris', 'Paris', '75001', '0102030405', 'contact@martin.fr', 'Installation', 'Entreprise de test', 'approved', NOW(), 'Electricité Martin', 'Alger', 'RC-12345', 5, '["câblage","tableaux"]')`,
+        [partenaireId]
+      );
+      entrepriseId = insertRes.insertId;
+    }
+    console.log('✅ Entreprise de test créée/présente');
+
+    // Offres
+    const offerInsert = await query(
+      `INSERT INTO offres (user_id, company_id, titre, description, type, contract_type, experience_required, wilaya, salary_min, salary_max, currency, is_active, requirements, date_debut, date_fin, created_at)
+       VALUES (?, ?, 'Électricien chantier', 'Installation et tirage de câbles', 'cdi', 'cdi', 2, 'Alger', 50000, 80000, 'DZD', 1, '["CACES","Habilitations électriques"]', CURDATE(), DATE_ADD(CURDATE(), INTERVAL 30 DAY), NOW())`,
+      [partenaireId, entrepriseId]
+    );
+    const offerId = offerInsert.insertId;
+    console.log('✅ Offre de test créée');
+
+    // Candidature à l'offre
+    await query(
+      `INSERT INTO offer_applications (offer_id, user_id, name, email, phone, status, applied_at)
+       VALUES (?, ?, 'Marie Bernard', 'candidat@test.com', '0600112233', 'nouveau', NOW())`,
+      [offerId, candidatId]
+    );
+    console.log('✅ Application à l\'offre créée');
+
+    // Abonnement pour le candidat
+    await query(
+      `INSERT INTO subscriptions (user_id, type, plan, date_debut, date_fin, status)
+       VALUES (?, 'mois', 'mensuel', NOW(), DATE_ADD(NOW(), INTERVAL 30 DAY), 'active')`,
+      [candidatId]
+    );
+    console.log('✅ Abonnement de test créé');
+
     // Créer quelques candidatures de test
     const candidatures = [
       {
-        user_id: 5, // candidat@test.com
+        user_id: candidatId,
         poste: 'Électricien installateur',
         experience: 3,
         formation: 'BTS Électrotechnique',
@@ -215,7 +220,7 @@ const seedData = async () => {
         salaire_souhaite: 2200.00
       },
       {
-        user_id: 5,
+        user_id: candidatId,
         poste: 'Technicien de maintenance',
         experience: 5,
         formation: 'DUT Génie électrique',

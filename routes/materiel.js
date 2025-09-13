@@ -145,10 +145,9 @@ router.get('/produits', async (req, res) => {
       params
     );
 
-    const DEFAULT_IMAGE = '/images/default.jpg';
     const produitsMapped = produits.map(p => ({
       ...p,
-      image_url: p.image_url || DEFAULT_IMAGE
+      image_url: p.image_url
     }));
 
     res.json({
@@ -187,9 +186,8 @@ router.get('/produits/:id', async (req, res) => {
       });
     }
 
-    const DEFAULT_IMAGE = '/images/default.jpg';
     res.json({
-      produit: { ...produit, image_url: produit.image_url || DEFAULT_IMAGE }
+      produit: { ...produit, image_url: produit.image_url }
     });
 
   } catch (error) {

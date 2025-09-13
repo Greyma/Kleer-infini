@@ -286,10 +286,9 @@ router.get('/admin/entreprises', requireAdminOrModerator, async (req, res) => {
       params
     );
 
-    const DEFAULT_IMAGE = '/images/default.jpg';
     const entreprisesMapped = entreprises.map(e => ({
       ...e,
-      logo_url: e.logo_url || DEFAULT_IMAGE
+      logo_url: e.logo_url 
     }));
 
     res.json({

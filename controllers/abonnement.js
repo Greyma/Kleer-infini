@@ -2,28 +2,33 @@ const db = require('../config/database');
 
 // Souscrire à un abonnement
 exports.souscrire = async (req, res) => {
-  const { type, raison_sociale, wilaya, numero_registre_commerce, annees_experience, specialites } = req.body;
+  // Accept { plan: 'mensuel' | 'trimestriel' }
+  const { plan } = req.body;
   const userId = req.user.id;
   let duree;
-  if (type === 'mois') duree = 30;
-  else if (type === 'trimestre') duree = 90;
-  else return res.status(400).json({ error: 'Type abonnement invalide' });
-
-  if (!raison_sociale || !wilaya || !numero_registre_commerce || !annees_experience || !specialites) {
-    return res.status(400).json({ error: 'Tous les champs sont obligatoires : raison sociale, wilaya, numéro registre commerce, années d\'expérience, spécialités.' });
-  }
+  if (plan === 'mensuel') duree = 30;
+  else if (plan === 'trimestriel') duree = 90;
+  else return res.status(400).json({ message: 'Plan invalide' });
 
   const now = new Date();
   const fin = new Date(now.getTime() + duree * 24 * 60 * 60 * 1000);
 
   try {
-    await db.query(
-      'INSERT INTO subscriptions (user_id, type, date_debut, date_fin, status, raison_sociale, wilaya, numero_registre_commerce, annees_experience, specialites) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [userId, type, now, fin, 'active', raison_sociale, wilaya, numero_registre_commerce, annees_experience, JSON.stringify(specialites)]
+    const result = await db.query(
+      'INSERT INTO subscriptions (user_id, type, plan, date_debut, date_fin, status) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, plan === 'mensuel' ? 'mois' : 'trimestre', plan, now, fin, 'active']
     );
-    res.json({ message: 'Abonnement souscrit avec succès', type, date_fin: fin });
+    res.status(201).json({
+      id: result.insertId,
+      userId,
+      plan,
+      status: 'active',
+      startsAt: now.toISOString(),
+      endsAt: fin.toISOString()
+    });
   } catch (err) {
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('Erreur souscription:', err);
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -31,11 +36,22 @@ exports.souscrire = async (req, res) => {
 exports.monAbonnement = async (req, res) => {
   const userId = req.user.id;
   try {
-    const [rows] = await db.query('SELECT * FROM subscriptions WHERE user_id = ? ORDER BY date_fin DESC LIMIT 1', [userId]);
-    if (!rows.length) return res.json({ abonnement: null });
-    res.json({ abonnement: rows[0] });
+    const [rows] = await db.query('SELECT status, date_debut, date_fin FROM subscriptions WHERE user_id = ? ORDER BY date_fin DESC LIMIT 1', [userId]);
+    if (!rows.length) return res.json({ status: 'free' });
+    const sub = rows[0];
+    const now = new Date();
+    const ends = new Date(sub.date_fin);
+    const payload = {
+      status: 'free',
+      startsAt: new Date(sub.date_debut).toISOString(),
+      endsAt: ends.toISOString()
+    };
+    if (sub.status === 'active' && ends > now) payload.status = 'premium';
+    else if (ends <= now) payload.status = 'expired';
+    return res.json(payload);
   } catch (err) {
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('Erreur monAbonnement:', err);
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 
@@ -43,10 +59,12 @@ exports.monAbonnement = async (req, res) => {
 exports.annuler = async (req, res) => {
   const userId = req.user.id;
   try {
-    await db.query('UPDATE subscriptions SET status = ? WHERE user_id = ? AND status = ?', ['cancelled', userId, 'active']);
-    res.json({ message: 'Abonnement annulé' });
+    const now = new Date();
+    await db.query('UPDATE subscriptions SET status = ?, canceled_at = ? WHERE user_id = ? AND status = ?', ['cancelled', now, userId, 'active']);
+    res.status(204).send();
   } catch (err) {
-    res.status(500).json({ error: 'Erreur serveur' });
+    console.error('Erreur annulation abonnement:', err);
+    res.status(500).json({ message: 'Erreur serveur' });
   }
 };
 

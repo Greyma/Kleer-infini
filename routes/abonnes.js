@@ -2,10 +2,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
-const auth = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/auth');
 
 // Liste des abonnés (candidats ayant un abonnement actif)
-router.get('/', auth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   // Admin : accès à tous les abonnés
   if (req.user.role === 'admin') {
     try {

@@ -61,8 +61,10 @@ router.post('/catalogue', [
 // Lister tous les services
 router.get('/catalogue', async (req, res) => {
   try {
-    const { categorie, disponibilite, page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
+    const { categorie, disponibilite } = req.query;
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(req.query.limit, 10) || 10);
+    const offset = (pageNum - 1) * limitNum;
 
     let whereClause = '1=1';
     let params = [];
@@ -85,17 +87,17 @@ router.get('/catalogue', async (req, res) => {
 
     // Récupérer les services
     const services = await dbQuery(
-      `SELECT * FROM services WHERE ${whereClause} ORDER BY nom LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+      `SELECT * FROM services WHERE ${whereClause} ORDER BY nom LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
     res.json({
       services,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: countResult.total,
-        pages: Math.ceil(countResult.total / limit)
+        pages: Math.ceil(countResult.total / limitNum)
       }
     });
 
@@ -413,8 +415,6 @@ router.get('/devis/:id', authenticateToken, async (req, res) => {
 router.get('/admin/devis', requireAdminOrModerator, async (req, res) => {
   try {
     const { status, urgence, page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
-
     let whereClause = '1=1';
     let params = [];
 
@@ -435,23 +435,26 @@ router.get('/admin/devis', requireAdminOrModerator, async (req, res) => {
     );
 
     // Récupérer les devis
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(req.query.limit, 10) || 10);
+    const offset = (pageNum - 1) * limitNum;
     const devis = await dbQuery(
       `SELECT d.*, u.nom, u.prenom, u.email, u.telephone
        FROM devis d
        JOIN users u ON d.client_id = u.id
        WHERE ${whereClause}
        ORDER BY d.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+       LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
     res.json({
       devis,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: countResult.total,
-        pages: Math.ceil(countResult.total / limit)
+        pages: Math.ceil(countResult.total / limitNum)
       }
     });
 

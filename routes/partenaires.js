@@ -103,10 +103,9 @@ router.get('/partenaires', async (req, res) => {
       params
     );
 
-    const DEFAULT_IMAGE = '/images/default.jpg';
     const partenairesMapped = partenaires.map(p => ({
       ...p,
-      logo_url: p.logo_url || DEFAULT_IMAGE
+      logo_url: p.logo_url
     }));
 
     res.json({
@@ -145,9 +144,8 @@ router.get('/partenaires/:id', async (req, res) => {
       });
     }
 
-    const DEFAULT_IMAGE = '/images/default.jpg';
     res.json({
-      partenaire: { ...partenaire, logo_url: partenaire.logo_url || DEFAULT_IMAGE }
+      partenaire: { ...partenaire, logo_url: partenaire.logo_url }
     });
 
   } catch (error) {

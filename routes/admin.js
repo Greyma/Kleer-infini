@@ -103,8 +103,10 @@ router.get('/dashboard', requireAdmin, async (req, res) => {
 // Gestion des utilisateurs
 router.get('/users', requireAdmin, async (req, res) => {
   try {
-    const { role, status, page = 1, limit = 20 } = req.query;
-    const offset = (page - 1) * limit;
+    const { role, status } = req.query;
+    const pageNum = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limitNum = Math.max(1, parseInt(req.query.limit, 10) || 20);
+    const offset = (pageNum - 1) * limitNum;
 
     let whereClause = '1=1';
     let params = [];
@@ -128,17 +130,17 @@ router.get('/users', requireAdmin, async (req, res) => {
     // Récupérer les utilisateurs
     const users = await dbQuery(
       `SELECT id, email, nom, prenom, telephone, role, status, created_at, updated_at
-       FROM users WHERE ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+       FROM users WHERE ${whereClause} ORDER BY created_at DESC LIMIT ${limitNum} OFFSET ${offset}`,
+      params
     );
 
     res.json({
       users,
       pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: pageNum,
+        limit: limitNum,
         total: countResult.total,
-        pages: Math.ceil(countResult.total / limit)
+        pages: Math.ceil(countResult.total / limitNum)
       }
     });
 
