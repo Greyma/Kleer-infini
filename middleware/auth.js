@@ -48,22 +48,49 @@ const authenticateToken = async (req, res, next) => {
 
 // Middleware pour vérifier les rôles
 const requireRole = (roles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        error: 'Authentification requise',
-        message: 'Vous devez être connecté pour accéder à cette ressource'
+  return async (req, res, next) => {
+    try {
+      // Si req.user n'est pas encore défini, tenter d'hydrater depuis le token
+      if (!req.user) {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+        if (token) {
+          try {
+            const decoded = jwt.verify(token, process.env.JWT_SECRET);
+            const [user] = await query(
+              'SELECT id, email, role, status FROM users WHERE id = ? AND status = "active"',
+              [decoded.userId]
+            );
+            if (user) {
+              req.user = user;
+            }
+          } catch (e) {
+            // Ignorer ici, on tombera sur l'erreur 401 plus bas
+          }
+        }
+      }
+
+      if (!req.user) {
+        return res.status(401).json({
+          error: 'Authentification requise',
+          message: 'Vous devez être connecté pour accéder à cette ressource'
+        });
+      }
+
+      if (!roles.includes(req.user.role)) {
+        return res.status(403).json({
+          error: 'Accès refusé',
+          message: 'Vous n\'avez pas les permissions nécessaires pour accéder à cette ressource'
+        });
+      }
+
+      next();
+    } catch (err) {
+      return res.status(500).json({
+        error: 'Erreur serveur',
+        message: 'Erreur lors de la vérification des permissions'
       });
     }
-
-    if (!roles.includes(req.user.role)) {
-      return res.status(403).json({
-        error: 'Accès refusé',
-        message: 'Vous n\'avez pas les permissions nécessaires pour accéder à cette ressource'
-      });
-    }
-
-    next();
   };
 };
 

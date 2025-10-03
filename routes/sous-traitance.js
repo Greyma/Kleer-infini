@@ -378,6 +378,13 @@ router.get('/recherche', async (req, res) => {
       params.push(`%${type_activite}%`);
     }
 
+    // NEW: filtre par nom d'entreprise (nom_entreprise ou raison_sociale)
+    if (req.query.nom) {
+      whereClause += ' AND (e.nom_entreprise LIKE ? OR e.raison_sociale LIKE ?)';
+      const like = `%${req.query.nom}%`;
+      params.push(like, like);
+    }
+
     const entreprises = await dbQuery(
       `SELECT e.id, e.nom_entreprise, e.type_activite, e.ville, e.code_postal,
               e.description, e.capacite_production, e.certifications, e.created_at

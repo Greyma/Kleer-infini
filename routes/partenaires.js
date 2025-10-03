@@ -91,6 +91,12 @@ router.get('/partenaires', async (req, res) => {
       params.push(categorie);
     }
 
+    // NEW: filtre par nom d'entreprise (recherche partielle)
+    if (req.query.nom) {
+      whereClause += ' AND nom LIKE ?';
+      params.push(`%${req.query.nom}%`);
+    }
+
     // Compter le total
     const [countResult] = await dbQuery(
       `SELECT COUNT(*) as total FROM partenaires WHERE ${whereClause}`,
