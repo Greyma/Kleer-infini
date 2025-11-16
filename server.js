@@ -58,6 +58,7 @@ const limiter = rateLimit({
     error: 'Trop de requêtes depuis cette IP, veuillez réessayer plus tard.'
   }
 });
+
 app.use('/api/', limiter);
 
 // Logging
@@ -164,10 +165,10 @@ app.use((err, req, res, next) => {
 });
 
 // Démarrage du serveur
-app.listen(PORT, () => {
-  console.log(`🚀 Serveur Garoui Electricité démarré sur le port ${PORT}`);
-  console.log(`📊 Environnement: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🔗 API disponible sur: http://localhost:${PORT}/api`);
-});
+// app.listen(PORT, () => {
+//   console.log(`🚀 Serveur Garoui Electricité démarré sur le port ${PORT}`);
+//   console.log(`📊 Environnement: ${process.env.NODE_ENV || 'development'}`);
+//   console.log(`🔗 API disponible sur: http://localhost:${PORT}/api`);
+// });
 
 module.exports = app; 
